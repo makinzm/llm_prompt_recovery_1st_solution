@@ -1,10 +1,5 @@
 ####################
 #	1/10
-# date_reading: 
-# thought: 
-# words: 
-# reference: 
-
 ####################
 
 %pip install ../input/hf-peft/peft-0.9.0-py3-none-any.whl
@@ -16,11 +11,6 @@
 
 ####################
 #	2/10
-# date_reading: 
-# thought: 
-# words: 
-# reference: 
-
 ####################
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -36,11 +26,6 @@ import json
 
 ####################
 #	3/10
-# date_reading: 
-# thought: 
-# words: 
-# reference: 
-
 ####################
 
 test = pd.read_csv("../input/llm-prompt-recovery/test.csv")
