@@ -124,13 +124,10 @@ def predict_gemma(model: AutoModelForCausalLM, tokenizer: AutoTokenizer, test: p
             predictions.append(prediction)
     return predictions
 
-def predict_mistral(model, tokenizer, test,prime=""):
-    predictions = []
-    with torch.no_grad():
-        for _, row in tqdm(test.iterrows(), total=len(test)):
-            ot = " ".join(str(row.original_text).split(" ")[:args.max_len])
-            rt = " ".join(str(row.rewritten_text).split(" ")[:args.max_len])
-            prompt = f'''
+def _predict_mistral(row: pd.Series, model: AutoModelForCausalLM, tokenizer: AutoTokenizer, prime: str) -> str:
+    ot = " ".join(str(row.original_text).split(" ")[:args.max_len])
+    rt = " ".join(str(row.rewritten_text).split(" ")[:args.max_len])
+    prompt = f'''
 Please find the prompt that was given to you to transform **original_text** to **new_text**. One clue is the prompt itself was short and concise.
 Answer in thist format: "It's likely that the prompt that transformed original_text to new_text was: <the prompt>" and don't add anything else.
 
@@ -140,29 +137,39 @@ Answer in thist format: "It's likely that the prompt that transformed original_t
 **new_text**:
 {rt}
 '''
-            conversation = [{"role": "user", "content": prompt }]
-            prompt = tokenizer.apply_chat_template(conversation, tokenize=False)+prime
-            input_ids = tokenizer.encode(prompt, add_special_tokens=False, truncation=True, max_length=1536,padding=False,return_tensors="pt")
-            x = model.generate(input_ids=input_ids.to(model.device), eos_token_id=[13, tokenizer.eos_token_id], pad_token_id=tokenizer.eos_token_id, max_new_tokens=32, do_sample=args.do_sample, early_stopping=True, num_beams=1)
-            try:
-                x = tokenizer.decode(x[0]).split("[/INST]")[-1].replace("</s>","").strip().split("\n",1)[0]
-                x = x.replace("Can you make this","Make this").replace("?",".")
-                # print(x.split(":",1)[0])
-                x = x.split(":",1)[-1].strip()
-                if x[-1].isalnum():
-                    x += "."
-                else:
-                    x = x[:-1]+"."
-                x += lucrarea
-                if len(x.split()) < 50 and len(x.split()) > 2 and ("\n" not in x):
-                    predictions.append(x)
-                else:
-                    predictions.append(magic)
-                print(predictions[-1])
-            except Exception as e:
-                print(e)
-                predictions.append(magic)
+    conversation = [{"role": "user", "content": prompt }]
+    prompt = tokenizer.apply_chat_template(conversation, tokenize=False)+prime
+    input_ids = tokenizer.encode(prompt, add_special_tokens=False, truncation=True, max_length=1536,padding=False,return_tensors="pt")
+    x = model.generate(input_ids=input_ids.to(model.device), eos_token_id=[13, tokenizer.eos_token_id], pad_token_id=tokenizer.eos_token_id, max_new_tokens=32, do_sample=args.do_sample, early_stopping=True, num_beams=1)
+    try:
+        x = tokenizer.decode(x[0]).split("[/INST]")[-1].replace("</s>","").strip().split("\n",1)[0]
+        x = x.replace("Can you make this","Make this").replace("?",".")
+        # print(x.split(":",1)[0])
+        x = x.split(":",1)[-1].strip()
+        if x[-1].isalnum():
+            x += "."
+        else:
+            x = x[:-1]+"."
+        x += lucrarea
+        predict = None
+        if len(x.split()) < 50 and len(x.split()) > 2 and ("\n" not in x):
+            predict = x
+        else:
+            predict = magic
+        print(predict)
+        return predict
+    except Exception as e:
+        print(e)
+        return magic
+
+def predict_mistral(model, tokenizer, test,prime="") -> list[str]:
+    predictions = []
+    with torch.no_grad():
+        for _, row in tqdm(test.iterrows(), total=len(test)):
+            prediction = _predict_mistral(row, model, tokenizer, prime)
+            predictions.append(prediction)
     return predictions
+
 model_name = args.model_path
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 banned_ids = None
