@@ -83,7 +83,7 @@ torch.backends.cuda.enable_mem_efficient_sdp(False)
 torch.backends.cuda.enable_flash_sdp(False)
 lucrarea = args.magic
 
-def _predict_gemma(row, model, tokenizer, bad_words_ids):
+def _predict_gemma(row: pd.Series, model: AutoModelForCausalLM, tokenizer: AutoTokenizer, bad_words_ids: list) -> str:
     if row.original_text == row.rewritten_text:
         return "Correct grammatical errors in this text."
     ot = " ".join(str(row.original_text).split(" ")[:args.max_len])
@@ -114,7 +114,7 @@ def _predict_gemma(row, model, tokenizer, bad_words_ids):
         print(e)
         return magic
 
-def predict_gemma(model: AutoModelForCausalLM, tokenizer: AutoTokenizer, test: pd.DataFrame, bad_words_ids=None):
+def predict_gemma(model: AutoModelForCausalLM, tokenizer: AutoTokenizer, test: pd.DataFrame, bad_words_ids=None) -> list[str]:
     if bad_words_ids is not None and len(bad_words_ids) == 0:
         bad_words_ids = None
     predictions = []
