@@ -82,49 +82,52 @@ magic = "Transform the following text in a more vivid and descriptive way, while
 torch.backends.cuda.enable_mem_efficient_sdp(False)
 torch.backends.cuda.enable_flash_sdp(False)
 lucrarea = args.magic
-def predict_gemma(model, tokenizer, test, bad_words_ids=None):
+
+def _predict_gemma(row, model, tokenizer, bad_words_ids):
+    if row.original_text == row.rewritten_text:
+        return "Correct grammatical errors in this text."
+    ot = " ".join(str(row.original_text).split(" ")[:args.max_len])
+    rt = " ".join(str(row.rewritten_text).split(" ")[:args.max_len])
+    prompt = f"Find the orginal prompt that transformed original text to new text.\n\nOriginal text: {ot}\n====\nNew text: {rt}"
+    conversation = [{"role": "user", "content": prompt }]
+    prime = args.prime
+    prompt = tokenizer.apply_chat_template(conversation, tokenize=False) + f"<start_of_turn>model\n{prime}"
+    input_ids = tokenizer.encode(prompt, add_special_tokens=False, truncation=True, max_length=1536,padding=False,return_tensors="pt")
+    x = model.generate(input_ids=input_ids.to(model.device), eos_token_id=tokenizer.eos_token_id, pad_token_id=tokenizer.eos_token_id, max_new_tokens=128, do_sample=args.do_sample, early_stopping=True, num_beams=1, bad_words_ids=bad_words_ids)
+    try:
+        x = tokenizer.decode(x[0]).split("<start_of_turn>model")[1].split("<end_of_turn>")[0].replace("<end_of_turn>\n<eos>","").replace("<end_of_turn>","").replace("<start_of_turn>","").replace("<eos>","").replace("<bos>","").strip().replace('"','').strip()
+        x = x.replace("Can you make this","Make this").replace("?",".").replace("Revise","Rewrite")
+        x = x.split(":",1)[-1].strip()
+        if "useruser" in x:
+            x = x.replace("user","")
+        if x[-1].isalnum():
+            x += "."
+        else:
+            x = x[:-1]+"."
+        x+= lucrarea
+        if len(x.split()) < args.max_output_len and len(x.split()) > args.min_output_len and ("\n" not in x):
+            print(x)
+            return x
+        else:
+            return magic
+    except Exception as e:
+        print(e)
+        return magic
+
+def predict_gemma(model: AutoModelForCausalLM, tokenizer: AutoTokenizer, test: pd.DataFrame, bad_words_ids=None):
     if bad_words_ids is not None and len(bad_words_ids) == 0:
         bad_words_ids = None
     predictions = []
-    scores = []
     with torch.no_grad():
-        for idx, row in tqdm(test.iterrows(), total=len(test)):
-            if row.original_text == row.rewritten_text:
-                predictions.append("Correct grammatical errors in this text.")
-                continue
-            ot = " ".join(str(row.original_text).split(" ")[:args.max_len])
-            rt = " ".join(str(row.rewritten_text).split(" ")[:args.max_len])
-            prompt = f"Find the orginal prompt that transformed original text to new text.\n\nOriginal text: {ot}\n====\nNew text: {rt}"
-            conversation = [{"role": "user", "content": prompt }]
-            prime = args.prime
-            prompt = tokenizer.apply_chat_template(conversation, tokenize=False) + f"<start_of_turn>model\n{prime}"
-            input_ids = tokenizer.encode(prompt, add_special_tokens=False, truncation=True, max_length=1536,padding=False,return_tensors="pt")
-            x = model.generate(input_ids=input_ids.to(model.device), eos_token_id=tokenizer.eos_token_id, pad_token_id=tokenizer.eos_token_id, max_new_tokens=128, do_sample=args.do_sample, early_stopping=True, num_beams=1, bad_words_ids=bad_words_ids)
-            try:
-                x = tokenizer.decode(x[0]).split("<start_of_turn>model")[1].split("<end_of_turn>")[0].replace("<end_of_turn>\n<eos>","").replace("<end_of_turn>","").replace("<start_of_turn>","").replace("<eos>","").replace("<bos>","").strip().replace('"','').strip()
-                x = x.replace("Can you make this","Make this").replace("?",".").replace("Revise","Rewrite")
-                x = x.split(":",1)[-1].strip()
-                if "useruser" in x:
-                    x = x.replace("user","")
-                if x[-1].isalnum():
-                    x += "."
-                else:
-                    x = x[:-1]+"."
-                x+= lucrarea
-                if len(x.split()) < args.max_output_len and len(x.split()) > args.min_output_len and ("\n" not in x):
-                    print(x)
-                    predictions.append(x)
-                else:
-                    predictions.append(magic)
-            except Exception as e:
-                print(e)
-                predictions.append(magic)
+        for _, row in tqdm(test.iterrows(), total=len(test)):
+            prediction = _predict_gemma(row, model, tokenizer, bad_words_ids)
+            predictions.append(prediction)
     return predictions
 
 def predict_mistral(model, tokenizer, test,prime=""):
     predictions = []
     with torch.no_grad():
-        for idx, row in tqdm(test.iterrows(), total=len(test)):
+        for _, row in tqdm(test.iterrows(), total=len(test)):
             ot = " ".join(str(row.original_text).split(" ")[:args.max_len])
             rt = " ".join(str(row.rewritten_text).split(" ")[:args.max_len])
             prompt = f'''
