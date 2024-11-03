@@ -91,8 +91,14 @@ def _predict_gemma(row: pd.Series, model: AutoModelForCausalLM, tokenizer: AutoT
     prompt = f"Find the orginal prompt that transformed original text to new text.\n\nOriginal text: {ot}\n====\nNew text: {rt}"
     conversation = [{"role": "user", "content": prompt }]
     prime = args.prime
-    prompt = tokenizer.apply_chat_template(conversation, tokenize=False) + f"<start_of_turn>model\n{prime}"
+    # apply_chat_template returns string when tokenize is False.
+    # [Chat Templates](https://huggingface.co/docs/transformers/main/ja/chat_templating)
+    # [Utilities for Tokenizers](https://huggingface.co/docs/transformers/main/ja/internal/tokenization_utils#transformers.PreTrainedTokenizerBase.apply_chat_template)
+    prompt = tokenizer.apply_chat_template(conversation = conversation, tokenize=False) + f"<start_of_turn>model\n{prime}"
+    # [Tokenizer — transformers 2.11.0 documentation](https://huggingface.co/transformers/v2.11.0/main_classes/tokenizer.html#transformers.PreTrainedTokenizer.encode)
+    # about truncation: [transformersのTokenizerで固定長化する - Money Forward Developers Blog](https://moneyforward-dev.jp/entry/2021/10/05/transformers-tokenizer/)
     input_ids = tokenizer.encode(prompt, add_special_tokens=False, truncation=True, max_length=1536,padding=False,return_tensors="pt")
+    # [How to generate text: using different decoding methods for language generation with Transformers](https://huggingface.co/blog/how-to-generate)
     x = model.generate(input_ids=input_ids.to(model.device), eos_token_id=tokenizer.eos_token_id, pad_token_id=tokenizer.eos_token_id, max_new_tokens=128, do_sample=args.do_sample, early_stopping=True, num_beams=1, bad_words_ids=bad_words_ids)
     try:
         x = tokenizer.decode(x[0]).split("<start_of_turn>model")[1].split("<end_of_turn>")[0].replace("<end_of_turn>\n<eos>","").replace("<end_of_turn>","").replace("<start_of_turn>","").replace("<eos>","").replace("<bos>","").strip().replace('"','').strip()
