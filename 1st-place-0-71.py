@@ -94,18 +94,44 @@ def _predict_gemma(row: pd.Series, model: AutoModelForCausalLM, tokenizer: AutoT
     # apply_chat_template returns string when tokenize is False.
     # [Chat Templates](https://huggingface.co/docs/transformers/main/ja/chat_templating)
     # [Utilities for Tokenizers](https://huggingface.co/docs/transformers/main/ja/internal/tokenization_utils#transformers.PreTrainedTokenizerBase.apply_chat_template)
-    prompt = tokenizer.apply_chat_template(conversation = conversation, tokenize=False) + f"<start_of_turn>model\n{prime}"
+    prompt = tokenizer.apply_chat_template(
+        conversation = conversation, 
+        tokenize=False
+    ) + f"<start_of_turn>model\n{prime}"
     # [Tokenizer — transformers 2.11.0 documentation](https://huggingface.co/transformers/v2.11.0/main_classes/tokenizer.html#transformers.PreTrainedTokenizer.encode)
     # about truncation: [transformersのTokenizerで固定長化する - Money Forward Developers Blog](https://moneyforward-dev.jp/entry/2021/10/05/transformers-tokenizer/)
-    input_ids = tokenizer.encode(prompt, add_special_tokens=False, truncation=True, max_length=1536,padding=False,return_tensors="pt")
+    # Encoded
+    # 入力テキストをトークン化し、テンソル形式で取得
+    input_ids = tokenizer.encode(
+        prompt,  # 入力となるプロンプト文字列
+        add_special_tokens=False,  # 特殊トークンを追加しない
+        truncation=True,  # 最大長を超える部分を切り捨てる
+        max_length=1536,  # 最大トークン数を1536に設定
+        padding=False,  # パディングを行わない
+        return_tensors="pt"  # PyTorchのテンソル形式で返す
+    )
     # [How to generate text: using different decoding methods for language generation with Transformers](https://huggingface.co/blog/how-to-generate)
-    x = model.generate(input_ids=input_ids.to(model.device), eos_token_id=tokenizer.eos_token_id, pad_token_id=tokenizer.eos_token_id, max_new_tokens=128, do_sample=args.do_sample, early_stopping=True, num_beams=1, bad_words_ids=bad_words_ids)
+    # Encoded
+    x = model.generate(
+        input_ids=input_ids.to(model.device),  # モデルのデバイス（CPU/GPU）に合わせて入力を転送
+        eos_token_id=tokenizer.eos_token_id,  # 生成終了を示すトークンID
+        pad_token_id=tokenizer.eos_token_id,  # パディングに使用するトークンID
+        max_new_tokens=128,  # 新たに生成する最大トークン数を128に設定
+        do_sample=args.do_sample,  # サンプリングを行うかどうか（True/False）
+        early_stopping=True,  # 早期終了を有効にする
+        num_beams=1,  # ビームサーチのビーム数を1に設定（グリーディーサーチ）
+        bad_words_ids=bad_words_ids  # 生成時に避けるべきトークンIDのリスト
+    )
     try:
-        x = tokenizer.decode(x[0]).split("<start_of_turn>model")[1].split("<end_of_turn>")[0].replace("<end_of_turn>\n<eos>","").replace("<end_of_turn>","").replace("<start_of_turn>","").replace("<eos>","").replace("<bos>","").strip().replace('"','').strip()
+        # 生成されたトークンIDをデコードして文字列に変換
+        x = tokenizer.decode(
+            x[0] # Tensorを配列にする（num_return_sequencesを設定している場合ははじめのものを取得する意味になる）
+        ).split("<start_of_turn>model")[1].split("<end_of_turn>")[0].replace("<end_of_turn>\n<eos>","").replace("<end_of_turn>","").replace("<start_of_turn>","").replace("<eos>","").replace("<bos>","").strip().replace('"','').strip()
         x = x.replace("Can you make this","Make this").replace("?",".").replace("Revise","Rewrite")
         x = x.split(":",1)[-1].strip()
         if "useruser" in x:
             x = x.replace("user","")
+        # https://docs.python.org/3/library/stdtypes.html#str.isalnum
         if x[-1].isalnum():
             x += "."
         else:
