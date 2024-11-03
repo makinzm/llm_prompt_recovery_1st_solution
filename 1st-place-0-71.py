@@ -220,11 +220,16 @@ if args.quantize:
                                                  torch_dtype=torch.bfloat16)
     if args.peft_path != "":
         print("Use peft")
+        # [Models](https://huggingface.co/docs/peft/main/en/package_reference/peft_model#peft.PeftModel)
+        # 指定されたパスからPEFTの設定を読み込み、ベースモデルに適用
         model = PeftModel.from_pretrained(model,
                                     args.peft_path,
                                     quantization_config=quantization_config,
                                     torch_dtype=torch.bfloat16,
                                     device_map="auto")
+        # [Configuration](https://huggingface.co/docs/peft/main/en/package_reference/config#peft.PeftConfig)
+        # [gemma 7b orca 68500](https://www.kaggle.com/datasets/suicaokhoailang/gemma-7b-orca-68500/data)
+        # [LoRA](https://huggingface.co/docs/peft/package_reference/lora)
 else:
     model = AutoModelForCausalLM.from_pretrained(model_name,
                                                  device_map="auto",
