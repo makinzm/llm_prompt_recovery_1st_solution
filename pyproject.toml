@@ -1,0 +1,9 @@
+[project]
+name = "llm-prompt-recovery-1st-solution"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "nparse>=0.0.16",
+]
